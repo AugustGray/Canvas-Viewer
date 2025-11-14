@@ -9,7 +9,7 @@ interface NodeProps {
     position: { x: number; y: number; };
     onPositionChange: (pos: { x: number; y: number; }) => void;
     onEndConnection: () => void;
-    onStartConnection: (nodeId: string, e: React.MouseEvent) => void;
+    onStartConnection: (nodeId: string, e: React.MouseEvent | React.TouchEvent) => void;
     connectedIds: string[];
     onDisconnect: (fromId: string) => void;
     onRemove: () => void;
@@ -21,11 +21,12 @@ interface NodeProps {
     isViewer: boolean;
 }
 
-const ConnectionPort: React.FC<{position: string; onMouseDown?: (e: React.MouseEvent) => void; title: string}> = ({ position, onMouseDown, title }) => (
+const ConnectionPort: React.FC<{position: string; onMouseDown?: (e: React.MouseEvent) => void; onTouchStart?: (e: React.TouchEvent) => void; title: string}> = ({ position, onMouseDown, onTouchStart, title }) => (
     <div 
         className={`connection-port absolute w-4 h-4 bg-[#CED2D9] dark:bg-[#464D56] rounded-full border-2 border-[#f0f3f6] dark:border-[#2a2e33] shadow-md cursor-pointer hover:bg-[#44A0D1] dark:hover:bg-[#54C1FB] transition-colors ${position}`} 
         title={title}
         onMouseDown={onMouseDown}
+        onTouchStart={onTouchStart}
     />
 );
 
@@ -34,24 +35,40 @@ export const Node = React.forwardRef<HTMLDivElement, NodeProps>(({ nodeId, nodeN
     const [isFlipped, setIsFlipped] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const handleDragStart = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
         if (isViewer || (e.target as HTMLElement).closest('.connection-port, button, textarea, .no-drag')) return;
         e.preventDefault();
         e.stopPropagation();
-        dragStartPos.current = { x: position.x, y: position.y, mouseX: e.clientX, mouseY: e.clientY };
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
+
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+        dragStartPos.current = { x: position.x, y: position.y, mouseX: clientX, mouseY: clientY };
+
+        if ('touches' in e) {
+            document.addEventListener('touchmove', handleDragMove);
+            document.addEventListener('touchend', handleDragEnd);
+        } else {
+            document.addEventListener('mousemove', handleDragMove);
+            document.addEventListener('mouseup', handleDragEnd);
+        }
     };
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleDragMove = (e: MouseEvent | TouchEvent) => {
         if (!dragStartPos.current) return;
-        const dx = e.clientX - dragStartPos.current.mouseX;
-        const dy = e.clientY - dragStartPos.current.mouseY;
+        
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+        const dx = clientX - dragStartPos.current.mouseX;
+        const dy = clientY - dragStartPos.current.mouseY;
         onPositionChange({ x: dragStartPos.current.x + dx, y: dragStartPos.current.y + dy });
     };
-    const handleMouseUp = () => {
+    const handleDragEnd = () => {
         dragStartPos.current = null;
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('mousemove', handleDragMove);
+        document.removeEventListener('mouseup', handleDragEnd);
+        document.removeEventListener('touchmove', handleDragMove);
+        document.removeEventListener('touchend', handleDragEnd);
     };
 
      useEffect(() => {
@@ -78,18 +95,22 @@ export const Node = React.forwardRef<HTMLDivElement, NodeProps>(({ nodeId, nodeN
         }
     };
 
+    const handleNodeMouseUp = () => onEndConnection();
+    const handleNodeTouchEnd = () => onEndConnection();
+
     if (nodeName === 'Context' && contextData && onUpdateNodeContext) {
         return (
-            <div ref={ref} className="absolute select-none group/card w-64" style={{ left: position.x, top: position.y, cursor: isViewer ? 'default' : 'grab' }} onMouseDown={handleMouseDown} onMouseUp={onEndConnection}>
+            <div ref={ref} className="absolute select-none group/card w-64" style={{ left: position.x, top: position.y, cursor: isViewer ? 'default' : 'grab' }} onMouseDown={handleDragStart} onTouchStart={handleDragStart} onMouseUp={handleNodeMouseUp} onTouchEnd={handleNodeTouchEnd}>
                 {!isViewer && (
                   <>
-                    <div onMouseUp={(e) => e.stopPropagation()}>
+                    <div onMouseUp={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
                         <ConnectionPort position="-top-2 left-1/2 -translate-x-1/2" title="Connect a concept or item here" />
                     </div>
                      <ConnectionPort 
                         position="-bottom-2 left-1/2 -translate-x-1/2"
                         title="Drag to connect to an output node"
                         onMouseDown={(e) => { e.stopPropagation(); onStartConnection(nodeId, e); }}
+                        onTouchStart={(e) => { e.stopPropagation(); onStartConnection(nodeId, e); }}
                     />
                     <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="absolute -top-2 -right-2 z-20 p-0.5 bg-red-500 text-white rounded-full hover:bg-red-700 transition-colors shadow-lg opacity-0 group-hover/card:opacity-100" title="Remove Node"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
                   </>
@@ -102,7 +123,7 @@ export const Node = React.forwardRef<HTMLDivElement, NodeProps>(({ nodeId, nodeN
                         onChange={(e) => onUpdateNodeContext(nodeId, e.target.value)}
                         readOnly={isViewer}
                         rows={1}
-                        className="mt-2 w-full bg-[#E0E5EC] dark:bg-[#212428] border border-[#CED2D9] dark:border-[#464D56] rounded-md text-sm text-[#212428] dark:text-[#E0E5EC] placeholder:text-xs p-2 focus:ring-1 focus:ring-amber-500 dark:focus:ring-amber-400 focus:border-amber-500 dark:focus:border-amber-400 transition-colors resize-none overflow-hidden no-drag"
+                        className="mt-2 w-full bg-[#E0E5EC] dark:bg-[#212428] border border-[#CED2D9] dark:border-[#464D56] rounded-md text-sm text-[#2128] dark:text-[#E0E5EC] placeholder:text-xs p-2 focus:ring-1 focus:ring-amber-500 dark:focus:ring-amber-400 focus:border-amber-500 dark:focus:border-amber-400 transition-colors resize-none overflow-hidden no-drag"
                         placeholder="Add a guiding theme or objective... (e.g., A cinematic shot for a luxury perfume ad)"
                     />
                 </div>
@@ -113,14 +134,14 @@ export const Node = React.forwardRef<HTMLDivElement, NodeProps>(({ nodeId, nodeN
     if (isOutput && outputState && onSetOutputNodeMode && onGenerateOutput) {
         const isGeneratorDisabled = (connectedIds.length === 0) || outputState?.isLoading;
         return (
-            <div ref={ref} className="absolute select-none group/card" style={{ left: position.x, top: position.y, perspective: '1000px', cursor: isViewer ? 'default' : 'grab', width: '18rem' }} onMouseDown={handleMouseDown} onMouseUp={onEndConnection}>
+            <div ref={ref} className="absolute select-none group/card" style={{ left: position.x, top: position.y, perspective: '1000px', cursor: isViewer ? 'default' : 'grab', width: '18rem' }} onMouseDown={handleDragStart} onTouchStart={handleDragStart} onMouseUp={handleNodeMouseUp} onTouchEnd={handleNodeTouchEnd}>
                 <div className="relative w-full [transform-style:preserve-3d] transition-transform duration-500" style={{ transform: isFlipped && !isViewer ? 'rotateY(180deg)' : 'rotateY(0deg)' }}>
                     {/* Front Face */}
                     <div className="w-full [backface-visibility:hidden]">
                         <div className="relative w-full bg-[#f0f3f6] dark:bg-[#2a2e33] rounded-lg shadow-lg border-2 border-dashed border-green-500 dark:border-green-400 flex flex-col p-3">
                             {!isViewer && (
                                 <>
-                                    <div onMouseUp={(e) => e.stopPropagation()}>
+                                    <div onMouseUp={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
                                         <ConnectionPort position="top-1/2 -left-2 -translate-y-1/2" title="Connect an item or context here" />
                                         <ConnectionPort position="top-1/2 -right-2 -translate-y-1/2" title="Connect an item or context here" />
                                         <ConnectionPort position="-top-2 left-1/2 -translate-x-1/2" title="Connect an item or context here" />
@@ -169,10 +190,10 @@ export const Node = React.forwardRef<HTMLDivElement, NodeProps>(({ nodeId, nodeN
     // Default concept node
     const isSpecialMoodboard = nodeName === 'Moodboard';
     return (
-        <div ref={ref} className="absolute select-none group/card w-48" style={{ left: position.x, top: position.y, cursor: isViewer ? 'default' : 'grab' }} onMouseDown={handleMouseDown} onMouseUp={onEndConnection}>
+        <div ref={ref} className="absolute select-none group/card w-48" style={{ left: position.x, top: position.y, cursor: isViewer ? 'default' : 'grab' }} onMouseDown={handleDragStart} onTouchStart={handleDragStart} onMouseUp={handleNodeMouseUp} onTouchEnd={handleNodeTouchEnd}>
             {!isViewer && (
                 <>
-                    <div onMouseUp={(e) => e.stopPropagation()}>
+                    <div onMouseUp={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
                         <ConnectionPort position="top-1/2 -left-2 -translate-y-1/2" title="Connect an image here"/>
                         <ConnectionPort position="top-1/2 -right-2 -translate-y-1/2" title="Connect an image here"/>
                         <ConnectionPort position="-top-2 left-1/2 -translate-x-1/2" title="Connect an image here"/>
@@ -184,6 +205,7 @@ export const Node = React.forwardRef<HTMLDivElement, NodeProps>(({ nodeId, nodeN
                         <div 
                             className="connection-port absolute top-1/2 right-0 transform translate-x-1/2 -translate-y-1/2 w-5 h-5 bg-gradient-to-r from-[#44A0D1] to-[#5AC549] dark:from-[#54C1FB] dark:to-[#6DFB54] rounded-full border-2 border-white dark:border-[#2a2e33] shadow-md cursor-pointer hover:scale-125 transition-transform z-20" 
                             onMouseDown={(e) => { e.stopPropagation(); onStartConnection(nodeId, e); }} 
+                            onTouchStart={(e) => { e.stopPropagation(); onStartConnection(nodeId, e); }} 
                             title="Drag to connect to another node or item" 
                         />
                     </div>

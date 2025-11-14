@@ -6,7 +6,7 @@ interface ItemCardProps {
   item: Item;
   onRemove: () => void;
   onPositionChange: (pos: { x: number; y: number }) => void;
-  onStartConnection: (itemId: string, e: React.MouseEvent) => void;
+  onStartConnection: (itemId: string, e: React.MouseEvent | React.TouchEvent) => void;
   onEndConnection: (itemId: string) => void;
   isCapturing: boolean;
   isViewer: boolean;
@@ -15,13 +15,17 @@ interface ItemCardProps {
 const ConnectionPort: React.FC<{
     position: string; 
     onMouseDown?: (e: React.MouseEvent) => void;
+    onTouchStart?: (e: React.TouchEvent) => void;
     onMouseUp?: (e: React.MouseEvent) => void;
+    onTouchEnd?: (e: React.TouchEvent) => void;
     title: string;
-}> = ({ position, onMouseDown, onMouseUp, title }) => (
+}> = ({ position, onMouseDown, onMouseUp, onTouchStart, onTouchEnd, title }) => (
     <div
         className={`connection-port absolute w-4 h-4 bg-[#CED2D9] dark:bg-[#464D56] rounded-full border-2 border-[#f0f3f6] dark:border-[#2a2e33] shadow-md cursor-pointer group-hover/card:opacity-100 opacity-0 transition-opacity z-20 ${position}`}
         onMouseDown={onMouseDown}
         onMouseUp={onMouseUp}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
         title={title}
     />
 );
@@ -30,36 +34,52 @@ export const ItemCard = React.forwardRef<HTMLDivElement, ItemCardProps>(({ item,
   const [isFlipped, setIsFlipped] = useState(false);
   const dragStartPos = useRef<{ x: number, y: number, mouseX: number, mouseY: number } | null>(null);
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleDragStart = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
     if (isViewer || (e.target as HTMLElement).closest('button, a, .no-drag, .connection-port')) {
         return;
     }
     e.preventDefault();
     e.stopPropagation();
+
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
     dragStartPos.current = {
       x: item.position.x,
       y: item.position.y,
-      mouseX: e.clientX,
-      mouseY: e.clientY,
+      mouseX: clientX,
+      mouseY: clientY,
     };
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    
+    if ('touches' in e) {
+        document.addEventListener('touchmove', handleDragMove);
+        document.addEventListener('touchend', handleDragEnd);
+    } else {
+        document.addEventListener('mousemove', handleDragMove);
+        document.addEventListener('mouseup', handleDragEnd);
+    }
   };
 
-  const handleMouseMove = (e: MouseEvent) => {
+  const handleDragMove = (e: MouseEvent | TouchEvent) => {
     if (!dragStartPos.current) return;
-    const dx = e.clientX - dragStartPos.current.mouseX;
-    const dy = e.clientY - dragStartPos.current.mouseY;
+
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    const dx = clientX - dragStartPos.current.mouseX;
+    const dy = clientY - dragStartPos.current.mouseY;
     onPositionChange({
       x: dragStartPos.current.x + dx,
       y: dragStartPos.current.y + dy,
     });
   };
 
-  const handleMouseUp = () => {
+  const handleDragEnd = () => {
     dragStartPos.current = null;
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
+    document.removeEventListener('mousemove', handleDragMove);
+    document.removeEventListener('mouseup', handleDragEnd);
+    document.removeEventListener('touchmove', handleDragMove);
+    document.removeEventListener('touchend', handleDragEnd);
   };
 
   const shouldBeFlipped = isCapturing ? false : isFlipped;
@@ -67,7 +87,7 @@ export const ItemCard = React.forwardRef<HTMLDivElement, ItemCardProps>(({ item,
   const name = item.rawData.Product || item.rawData.product || item.rawData.Name || item.rawData.name || 'Unnamed Item';
   const type = item.rawData.Type || item.rawData.type;
   
-  const handlePortMouseUp = (e: React.MouseEvent) => {
+  const handlePortRelease = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     onEndConnection(item.id);
   };
@@ -111,18 +131,21 @@ export const ItemCard = React.forwardRef<HTMLDivElement, ItemCardProps>(({ item,
         ref={ref}
         className="w-64 absolute select-none group/card"
         style={{ left: item.position.x, top: item.position.y, perspective: '1000px', cursor: isViewer ? 'default' : 'grab' }}
-        onMouseDown={handleMouseDown}
+        onMouseDown={handleDragStart}
+        onTouchStart={handleDragStart}
         onMouseUp={() => onEndConnection(item.id)}
+        onTouchEnd={() => onEndConnection(item.id)}
     >
         {!isViewer && (
             <>
-                <ConnectionPort position="top-1/2 -left-2 -translate-y-1/2" title="Connect a node here" onMouseUp={handlePortMouseUp}/>
-                <ConnectionPort position="top-1/2 -right-2 -translate-y-1/2" title="Connect a node here" onMouseUp={handlePortMouseUp}/>
-                <ConnectionPort position="-top-2 left-1/2 -translate-x-1/2" title="Connect a node here" onMouseUp={handlePortMouseUp}/>
+                <ConnectionPort position="top-1/2 -left-2 -translate-y-1/2" title="Connect a node here" onMouseUp={handlePortRelease} onTouchEnd={handlePortRelease} />
+                <ConnectionPort position="top-1/2 -right-2 -translate-y-1/2" title="Connect a node here" onMouseUp={handlePortRelease} onTouchEnd={handlePortRelease} />
+                <ConnectionPort position="-top-2 left-1/2 -translate-x-1/2" title="Connect a node here" onMouseUp={handlePortRelease} onTouchEnd={handlePortRelease} />
                 <ConnectionPort 
                     position="-bottom-2 left-1/2 -translate-x-1/2" 
                     title="Drag to connect"
                     onMouseDown={(e) => { e.stopPropagation(); onStartConnection(item.id, e); }}
+                    onTouchStart={(e) => { e.stopPropagation(); onStartConnection(item.id, e); }}
                 />
             </>
         )}

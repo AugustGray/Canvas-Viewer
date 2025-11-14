@@ -137,6 +137,8 @@ export const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({
     const [selectionStart, setSelectionStart] = useState<{x: number, y: number} | null>(null);
     const [selectionRect, setSelectionRect] = useState<{x: number, y: number, width: number, height: number} | null>(null);
     const autoPanRequestRef = useRef<number | null>(null);
+    const pinchStartDistance = useRef<number | null>(null);
+    const pinchStartZoom = useRef<number | null>(null);
 
 
     const canvasRef = useRef<HTMLDivElement>(null);
@@ -155,41 +157,51 @@ export const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({
         };
     }, [pan.x, pan.y, zoom]);
 
-    const handleStartConnection = useCallback((id: string, type: 'image' | 'node' | 'item', e: React.MouseEvent) => {
+    const handleStartConnection = useCallback((id: string, type: 'image' | 'node' | 'item', e: React.MouseEvent | React.TouchEvent) => {
         if (isViewer) return;
         e.preventDefault();
         e.stopPropagation();
         
-        const portElement = e.currentTarget;
+        const portElement = e.currentTarget as HTMLElement;
         const portRect = portElement.getBoundingClientRect();
         
         const portCenterX = portRect.left + portRect.width / 2;
         const portCenterY = portRect.top + portRect.height / 2;
 
         const fromPos = screenToCanvasCoords(portCenterX, portCenterY);
-        const toMouse = screenToCanvasCoords(e.clientX, e.clientY);
+        
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+        
+        const toMouse = screenToCanvasCoords(clientX, clientY);
 
         setDrawingLine({ fromId: id, fromType: type, fromPos, toMouse });
     }, [screenToCanvasCoords, isViewer]);
 
     useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
+        const handleDragMove = (e: MouseEvent | TouchEvent) => {
             if (drawingLine) {
-                const { x, y } = screenToCanvasCoords(e.clientX, e.clientY);
+                const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+                const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+                const { x, y } = screenToCanvasCoords(clientX, clientY);
                 setDrawingLine(prev => prev ? { ...prev, toMouse: { x, y } } : null);
             }
         };
 
-        const handleMouseUp = () => setDrawingLine(null);
+        const handleDragEnd = () => setDrawingLine(null);
         
         if (drawingLine) {
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
+            document.addEventListener('mousemove', handleDragMove);
+            document.addEventListener('mouseup', handleDragEnd);
+            document.addEventListener('touchmove', handleDragMove);
+            document.addEventListener('touchend', handleDragEnd);
         }
 
         return () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
+            document.removeEventListener('mousemove', handleDragMove);
+            document.removeEventListener('mouseup', handleDragEnd);
+            document.removeEventListener('touchmove', handleDragMove);
+            document.removeEventListener('touchend', handleDragEnd);
         };
     }, [drawingLine, screenToCanvasCoords]);
     
@@ -281,6 +293,50 @@ export const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({
         }
     };
     
+    const handleCanvasTouchStart = (e: React.TouchEvent) => {
+        if ((e.target as HTMLElement).closest('.select-none')) return;
+    
+        if (e.touches.length === 1) {
+            e.preventDefault();
+            isPanning.current = true;
+            lastMousePos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        } else if (e.touches.length === 2) {
+            e.preventDefault();
+            isPanning.current = false; // Disable panning when zooming
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            pinchStartDistance.current = Math.sqrt(dx * dx + dy * dy);
+            pinchStartZoom.current = zoom;
+        }
+    };
+
+    const handleCanvasTouchMove = (e: React.TouchEvent) => {
+        if (e.touches.length === 1 && isPanning.current) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const dx = touch.clientX - lastMousePos.current.x;
+            const dy = touch.clientY - lastMousePos.current.y;
+            setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+            lastMousePos.current = { x: touch.clientX, y: touch.clientY };
+        } else if (e.touches.length === 2 && pinchStartDistance.current !== null && pinchStartZoom.current !== null) {
+            e.preventDefault();
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            const dx = touch1.clientX - touch2.clientX;
+            const dy = touch1.clientY - touch2.clientY;
+            const newDistance = Math.sqrt(dx * dx + dy * dy);
+            const scale = newDistance / pinchStartDistance.current;
+            const newZoom = pinchStartZoom.current * scale;
+            setZoom(Math.max(0.2, Math.min(2, newZoom)));
+        }
+    };
+
+    const handleCanvasTouchEnd = () => {
+        isPanning.current = false;
+        pinchStartDistance.current = null;
+        pinchStartZoom.current = null;
+    };
+    
     const getConnectionPath = useCallback((fromId: string, toId: string) => {
         const fromElement = imageRefs.current[fromId] || nodeRefs.current[fromId] || itemRefs.current[fromId];
         const toElement = nodeRefs.current[toId];
@@ -361,6 +417,7 @@ export const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({
             style={{ cursor: isPanning.current ? 'grabbing' : 'grab' }}
             onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseUp}
             onWheel={handleWheel}
+            onTouchStart={handleCanvasTouchStart} onTouchMove={handleCanvasTouchMove} onTouchEnd={handleCanvasTouchEnd}
             onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDragOver={handleDragOver} onDrop={handleDrop}
         >
              {isDraggingOver && <div className="absolute inset-0 bg-[#44A0D1]/20 dark:bg-[#54C1FB]/20 backdrop-blur-sm border-4 border-dashed border-[#44A0D1] dark:border-[#54C1FB] flex items-center justify-center pointer-events-none z-50 transition-all duration-300"><div className="text-center text-[#212428] dark:text-[#E0E5EC]"><svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p className="mt-4 text-2xl font-bold">Drop image to add to canvas</p></div></div>}

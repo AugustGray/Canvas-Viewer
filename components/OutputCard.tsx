@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef } from 'react';
 // FIX: Rename imported OutputCard type to avoid name collision with the component.
 import { OutputCard as OutputCardType } from '../types';
@@ -29,36 +27,52 @@ export const OutputCard = React.forwardRef<HTMLDivElement, OutputCardProps>(({ c
   const [copied, setCopied] = useState(false);
   const dragStartPos = useRef<{ x: number, y: number, mouseX: number, mouseY: number } | null>(null);
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleDragStart = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
     if (isViewer || (e.target as HTMLElement).closest('button, a, .no-drag')) {
         return;
     }
     e.preventDefault();
     e.stopPropagation();
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
     dragStartPos.current = {
       x: card.position.x,
       y: card.position.y,
-      mouseX: e.clientX,
-      mouseY: e.clientY,
+      mouseX: clientX,
+      mouseY: clientY,
     };
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    
+    if ('touches' in e) {
+        document.addEventListener('touchmove', handleDragMove);
+        document.addEventListener('touchend', handleDragEnd);
+    } else {
+        document.addEventListener('mousemove', handleDragMove);
+        document.addEventListener('mouseup', handleDragEnd);
+    }
   };
 
-  const handleMouseMove = (e: MouseEvent) => {
+  const handleDragMove = (e: MouseEvent | TouchEvent) => {
     if (!dragStartPos.current) return;
-    const dx = e.clientX - dragStartPos.current.mouseX;
-    const dy = e.clientY - dragStartPos.current.mouseY;
+
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    const dx = clientX - dragStartPos.current.mouseX;
+    const dy = clientY - dragStartPos.current.mouseY;
     onPositionChange({
       x: dragStartPos.current.x + dx,
       y: dragStartPos.current.y + dy,
     });
   };
 
-  const handleMouseUp = () => {
+  const handleDragEnd = () => {
     dragStartPos.current = null;
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
+    document.removeEventListener('mousemove', handleDragMove);
+    document.removeEventListener('mouseup', handleDragEnd);
+    document.removeEventListener('touchmove', handleDragMove);
+    document.removeEventListener('touchend', handleDragEnd);
   };
   
   const handleCopy = (e: React.MouseEvent) => {
@@ -91,7 +105,8 @@ export const OutputCard = React.forwardRef<HTMLDivElement, OutputCardProps>(({ c
         ref={ref}
         className="w-80 absolute select-none group/card"
         style={{ left: card.position.x, top: card.position.y, cursor: isViewer ? 'default' : 'grab' }}
-        onMouseDown={handleMouseDown}
+        onMouseDown={handleDragStart}
+        onTouchStart={handleDragStart}
     >
         <div className={`relative bg-[#f0f3f6] dark:bg-[#2a2e33] rounded-xl shadow-lg flex flex-col border-2 ${cardStyles[card.type]} w-full`}>
             <div className={`p-3 border-b-2 ${cardStyles[card.type]} flex justify-between items-center`}>

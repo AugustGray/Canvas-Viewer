@@ -7,7 +7,7 @@ interface ImageCardProps {
   image: AnalyzedImage;
   onRemove: () => void;
   onPositionChange: (pos: { x: number; y: number }) => void;
-  onStartConnection: (imageId: string, e: React.MouseEvent) => void;
+  onStartConnection: (imageId: string, e: React.MouseEvent | React.TouchEvent) => void;
   isCapturing: boolean;
   isViewer: boolean;
 }
@@ -17,36 +17,52 @@ export const ImageCard = React.forwardRef<HTMLDivElement, ImageCardProps>(({ ima
   const [isCollapsed, setIsCollapsed] = useState(false);
   const dragStartPos = useRef<{ x: number, y: number, mouseX: number, mouseY: number } | null>(null);
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleDragStart = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
     if (isViewer || (e.target as HTMLElement).closest('button, .connection-port, a, .no-drag')) {
         return;
     }
     e.preventDefault();
     e.stopPropagation();
+
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
     dragStartPos.current = {
       x: image.position.x,
       y: image.position.y,
-      mouseX: e.clientX,
-      mouseY: e.clientY,
+      mouseX: clientX,
+      mouseY: clientY,
     };
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    
+    if ('touches' in e) {
+        document.addEventListener('touchmove', handleDragMove);
+        document.addEventListener('touchend', handleDragEnd);
+    } else {
+        document.addEventListener('mousemove', handleDragMove);
+        document.addEventListener('mouseup', handleDragEnd);
+    }
   };
 
-  const handleMouseMove = (e: MouseEvent) => {
+  const handleDragMove = (e: MouseEvent | TouchEvent) => {
     if (!dragStartPos.current) return;
-    const dx = e.clientX - dragStartPos.current.mouseX;
-    const dy = e.clientY - dragStartPos.current.mouseY;
+
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    const dx = clientX - dragStartPos.current.mouseX;
+    const dy = clientY - dragStartPos.current.mouseY;
     onPositionChange({
       x: dragStartPos.current.x + dx,
       y: dragStartPos.current.y + dy,
     });
   };
 
-  const handleMouseUp = () => {
+  const handleDragEnd = () => {
     dragStartPos.current = null;
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
+    document.removeEventListener('mousemove', handleDragMove);
+    document.removeEventListener('mouseup', handleDragEnd);
+    document.removeEventListener('touchmove', handleDragMove);
+    document.removeEventListener('touchend', handleDragEnd);
   };
   
   const keywordNodeTypes = ['Color Palette', 'Style', 'Texture'];
@@ -67,7 +83,8 @@ export const ImageCard = React.forwardRef<HTMLDivElement, ImageCardProps>(({ ima
         ref={ref}
         className="w-64 absolute select-none group/card"
         style={{ left: image.position.x, top: image.position.y, perspective: '1000px', cursor: isViewer ? 'default' : 'grab' }}
-        onMouseDown={handleMouseDown}
+        onMouseDown={handleDragStart}
+        onTouchStart={handleDragStart}
     >
         <div 
             className={`relative w-full [transform-style:preserve-3d] ${!isCapturing ? 'transition-transform duration-500' : ''}`}
@@ -82,11 +99,13 @@ export const ImageCard = React.forwardRef<HTMLDivElement, ImageCardProps>(({ ima
                             <div
                                 className="connection-port absolute top-1/2 -left-2 transform -translate-y-1/2 w-4 h-4 bg-[#44A0D1] dark:bg-[#54C1FB] rounded-full border-2 border-white dark:border-[#2a2e33] shadow-md cursor-pointer hover:scale-125 transition-transform z-20"
                                 onMouseDown={(e) => { e.stopPropagation(); onStartConnection(image.id, e); }}
+                                onTouchStart={(e) => { e.stopPropagation(); onStartConnection(image.id, e); }}
                                 title="Drag to connect"
                             />
                             <div
                                 className="connection-port absolute top-1/2 -right-2 transform -translate-y-1/2 w-4 h-4 bg-[#44A0D1] dark:bg-[#54C1FB] rounded-full border-2 border-white dark:border-[#2a2e33] shadow-md cursor-pointer hover:scale-125 transition-transform z-20"
                                 onMouseDown={(e) => { e.stopPropagation(); onStartConnection(image.id, e); }}
+                                onTouchStart={(e) => { e.stopPropagation(); onStartConnection(image.id, e); }}
                                 title="Drag to connect"
                             />
                           </>
@@ -100,7 +119,7 @@ export const ImageCard = React.forwardRef<HTMLDivElement, ImageCardProps>(({ ima
                               className="absolute top-2 left-2 bg-black/40 text-white rounded-full p-1.5 hover:bg-black/70 transition-colors focus:outline-none focus:ring-2 focus:ring-[#44A0D1] dark:focus:ring-[#54C1FB] z-10"
                               aria-label="Remove image"
                           >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <svg xmlns="http://www.w.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                               </svg>
                           </button>
