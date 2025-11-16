@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { Item } from '../types';
 import { Spinner } from './Spinner';
@@ -193,12 +194,12 @@ export const ItemCard = React.forwardRef<HTMLDivElement, ItemCardProps>(({ item,
             {/* Back Face */}
             <div className={`absolute top-0 left-0 w-full h-full [backface-visibility:hidden] [transform:rotateY(180deg)] no-drag ${isCapturing ? 'hidden' : ''}`}>
                 <div className="bg-[#f0f3f6] dark:bg-[#2a2e33] rounded-xl shadow-lg flex flex-col border border-[#CED2D9] dark:border-[#464D56] w-full h-full">
-                    <div className="p-3 flex-grow overflow-y-auto space-y-3">
+                    <div className="p-3 flex-grow overflow-y-auto space-y-3" onWheel={e => e.stopPropagation()}>
                         <h3 className="text-sm font-bold text-center text-[#212428] dark:text-[#E0E5EC]">Raw CSV Data</h3>
                         {Object.entries(item.rawData).map(([key, value]) => (
                             <div key={key}>
                                 <h4 className="text-xs font-semibold text-[#44A0D1] dark:text-[#54C1FB]">{key}</h4>
-                                <p className="text-xs text-[#464D56] dark:text-[#CED2D9] leading-relaxed bg-[#E0E5EC] dark:bg-[#212428] p-2 rounded-md whitespace-pre-wrap">{String(value)}</p>
+                                <p className="text-xs text-[#464D56] dark:text-[#CED2D9] leading-relaxed bg-[#E0E5EC] dark:bg-[#2128] p-2 rounded-md whitespace-pre-wrap">{typeof value === 'object' && value !== null ? JSON.stringify(value, null, 2) : String(value)}</p>
                             </div>
                         ))}
                     </div>

@@ -444,9 +444,12 @@ export const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({
                     {drawingLine && <path d={getDrawingLinePath() || ''} className="stroke-[#44A0D1] dark:stroke-[#54C1FB]" strokeWidth="2" fill="none" strokeDasharray="5,5" />}
                 </svg>
 
-                {analyzedImages.map(image => <ImageCard key={image.id} isViewer={isViewer} ref={el => imageRefs.current[image.id] = el} image={image} onRemove={() => onRemoveImage(image.id)} onPositionChange={(pos) => onImagePositionChange(image.id, pos)} onStartConnection={(imageId, e) => handleStartConnection(imageId, 'image', e)} isCapturing={isCapturing} />)}
-                {items.map(item => <ItemCard key={item.id} isViewer={isViewer} ref={el => itemRefs.current[item.id] = el} item={item} onRemove={() => onRemoveItem(item.id)} onPositionChange={(pos) => onItemPositionChange(item.id, pos)} onStartConnection={(itemId, e) => handleStartConnection(itemId, 'item', e)} onEndConnection={handleEndConnectionOnItem} isCapturing={isCapturing} />)}
-                {outputCards.map(card => <OutputCardComponent key={card.id} isViewer={isViewer} ref={el => outputCardRefs.current[card.id] = el} card={card} onRemove={() => onRemoveOutputCard(card.id)} onPositionChange={(pos) => onOutputCardPositionChange(card.id, pos)} />)}
+                {/* FIX: Changed ref callback to a block statement to ensure it doesn't return a value, which is required for ref callbacks. */}
+                {analyzedImages.map(image => <ImageCard key={image.id} isViewer={isViewer} ref={el => { imageRefs.current[image.id] = el; }} image={image} onRemove={() => onRemoveImage(image.id)} onPositionChange={(pos) => onImagePositionChange(image.id, pos)} onStartConnection={(imageId, e) => handleStartConnection(imageId, 'image', e)} isCapturing={isCapturing} />)}
+                {/* FIX: Changed ref callback to a block statement to ensure it doesn't return a value, which is required for ref callbacks. */}
+                {items.map(item => <ItemCard key={item.id} isViewer={isViewer} ref={el => { itemRefs.current[item.id] = el; }} item={item} onRemove={() => onRemoveItem(item.id)} onPositionChange={(pos) => onItemPositionChange(item.id, pos)} onStartConnection={(itemId, e) => handleStartConnection(itemId, 'item', e)} onEndConnection={handleEndConnectionOnItem} isCapturing={isCapturing} />)}
+                {/* FIX: Changed ref callback to a block statement to ensure it doesn't return a value, which is required for ref callbacks. */}
+                {outputCards.map(card => <OutputCardComponent key={card.id} isViewer={isViewer} ref={el => { outputCardRefs.current[card.id] = el; }} card={card} onRemove={() => onRemoveOutputCard(card.id)} onPositionChange={(pos) => onOutputCardPositionChange(card.id, pos)} />)}
                 
                 {nodes.map(node => (
                     <Node 

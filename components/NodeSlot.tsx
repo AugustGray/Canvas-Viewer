@@ -123,6 +123,7 @@ export const Node = React.forwardRef<HTMLDivElement, NodeProps>(({ nodeId, nodeN
                         onChange={(e) => onUpdateNodeContext(nodeId, e.target.value)}
                         readOnly={isViewer}
                         rows={1}
+                        onWheel={e => e.stopPropagation()}
                         className="mt-2 w-full bg-[#E0E5EC] dark:bg-[#212428] border border-[#CED2D9] dark:border-[#464D56] rounded-md text-sm text-[#2128] dark:text-[#E0E5EC] placeholder:text-xs p-2 focus:ring-1 focus:ring-amber-500 dark:focus:ring-amber-400 focus:border-amber-500 dark:focus:border-amber-400 transition-colors resize-none overflow-hidden no-drag"
                         placeholder="Add a guiding theme or objective... (e.g., A cinematic shot for a luxury perfume ad)"
                     />

@@ -119,7 +119,7 @@ export const OutputCard = React.forwardRef<HTMLDivElement, OutputCardProps>(({ c
                     {copied ? 'Copied' : 'Copy'}
                 </button>
             </div>
-            <div className="p-3 max-h-60 overflow-y-auto no-drag">
+            <div className="p-3 max-h-60 overflow-y-auto no-drag" onWheel={e => e.stopPropagation()}>
                 <p className="text-sm text-[#212428] dark:text-[#E0E5EC] leading-relaxed whitespace-pre-wrap">{card.prompt}</p>
             </div>
             {!isViewer && (

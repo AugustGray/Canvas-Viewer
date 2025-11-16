@@ -119,7 +119,7 @@ export const ImageCard = React.forwardRef<HTMLDivElement, ImageCardProps>(({ ima
                               className="absolute top-2 left-2 bg-black/40 text-white rounded-full p-1.5 hover:bg-black/70 transition-colors focus:outline-none focus:ring-2 focus:ring-[#44A0D1] dark:focus:ring-[#54C1FB] z-10"
                               aria-label="Remove image"
                           >
-                              <svg xmlns="http://www.w.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                               </svg>
                           </button>
@@ -184,7 +184,7 @@ export const ImageCard = React.forwardRef<HTMLDivElement, ImageCardProps>(({ ima
             {/* Back Face */}
             <div className={`absolute top-0 left-0 w-full h-full [backface-visibility:hidden] [transform:rotateY(180deg)] no-drag ${isCapturing ? 'hidden' : ''}`}>
                 <div className="bg-[#f0f3f6] dark:bg-[#2a2e33] rounded-xl shadow-lg flex flex-col border border-[#CED2D9] dark:border-[#464D56] w-full h-full">
-                    <div className="p-3 flex-grow overflow-y-auto space-y-3">
+                    <div className="p-3 flex-grow overflow-y-auto space-y-3" onWheel={e => e.stopPropagation()}>
                         <h3 className="text-sm font-bold text-center text-[#212428] dark:text-[#E0E5EC]">AI Descriptions</h3>
                         {descriptionAnalyses.map(({ nodeType, nodeAnalysis }) => (
                             <div key={nodeType}>
